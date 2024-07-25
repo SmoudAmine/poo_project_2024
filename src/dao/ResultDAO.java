@@ -126,5 +126,14 @@ public class ResultDAO {
 		}
 		return results;
 	}
+	
+    public void deleteResultsByQuizId(int quizId) throws SQLException {
+        String sql = "DELETE FROM result WHERE quiz_id = ?";
+        try (Connection connection = DBConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, quizId);
+            statement.executeUpdate();
+        }
+    }
 
 }

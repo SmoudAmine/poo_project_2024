@@ -30,19 +30,6 @@ public class QuizDAO {
         return quizId;
     }
 
-    public void addQuestion(int quizId, String questionText, String answer) {
-        try (Connection connection = DBConnection.getConnection()) {
-            String sql = "INSERT INTO Question (quiz_id, question_text, answer) VALUES (?, ?, ?)";
-            PreparedStatement statement = connection.prepareStatement(sql);
-            statement.setInt(1, quizId);
-            statement.setString(2, questionText);
-            statement.setString(3, answer);
-            statement.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
     public ArrayList<Quiz> getAllQuizzes() {
         ArrayList<Quiz> quizzes = new ArrayList<>();
         try (Connection connection = DBConnection.getConnection()) {

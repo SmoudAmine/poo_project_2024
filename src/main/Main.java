@@ -1,5 +1,6 @@
 package main;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.InputMismatchException;
 import java.util.List;
@@ -23,12 +24,12 @@ public class Main {
     private static final String BLUE = "\033[34m";
     private static final String CYAN = "\033[36m";
 
-    public static void main(String[] args) {
-        UserDAO userDAO = new UserDAO();
-        QuizDAO quizDAO = new QuizDAO();
-        QuestionDAO questionDAO = new QuestionDAO();
-        ResultDAO resultDAO = new ResultDAO();
+    private static UserDAO userDAO = new UserDAO();
+    private static QuizDAO quizDAO = new QuizDAO();
+    private static QuestionDAO questionDAO = new QuestionDAO();
+    private static ResultDAO resultDAO = new ResultDAO();
 
+    public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         try {
             int continuerprog;
@@ -44,15 +45,15 @@ public class Main {
                 int profil = getValidInteger(sc, "Veuillez entrer 1 pour Enseignant ou 2 pour Etudiant.");
 
                 switch (profil) {
-                    case 1:
-                        handleEnseignant(sc, quizDAO, questionDAO);
-                        break;
-                    case 2:
-                        handleEtudiant(userDAO, quizDAO, questionDAO, resultDAO);
-                        break;
-                    default:
-                        System.out.println("Choix invalide.");
-                        break;
+                case 1:
+                    handleEnseignant(sc);
+                    break;
+                case 2:
+                    handleEtudiant();
+                    break;
+                default:
+                    System.out.println("Choix invalide.");
+                    break;
                 }
             } while (continuerprog == 1);
         } finally {
@@ -60,31 +61,32 @@ public class Main {
         }
     }
 
-    private static void handleEnseignant(Scanner sc, QuizDAO quizDAO, QuestionDAO questionDAO) {
+    private static void handleEnseignant(Scanner sc) {
         System.out.println("Que voulez-vous faire? 1-Ajouter 2-Supprimer 3-Afficher les résultats");
-        int choixenseignant = getValidInteger(sc, "Veuillez entrer 1 pour Ajouter, 2 pour Supprimer ou 3 pour Afficher les résultats.");
+        int choixenseignant = getValidInteger(sc,
+                "Veuillez entrer 1 pour Ajouter, 2 pour Supprimer ou 3 pour Afficher les résultats.");
 
         switch (choixenseignant) {
-            case 1:
-                addQuiz(quizDAO, questionDAO);
-                break;
-            case 2:
-                removeQuiz(quizDAO);
-                break;
-            case 3:
-                displayResults();
-                break;
-            default:
-                System.out.println("Choix invalide.");
-                break;
+        case 1:
+            addQuiz();
+            break;
+        case 2:
+            removeQuiz();
+            break;
+        case 3:
+            displayResults();
+            break;
+        default:
+            System.out.println("Choix invalide.");
+            break;
         }
     }
 
-    private static void addQuiz(QuizDAO quizDAO, QuestionDAO questionDAO) {
+    private static void addQuiz() {
         Scanner sc = new Scanner(System.in);
 
         System.out.println("Donner le nom du quiz:");
-        String quizName = sc.nextLine();
+        String quizName = sc.nextLine(); // Use nextLine() to read the entire line
 
         // Create and add quiz
         Quiz quiz = new Quiz(quizName);
@@ -92,27 +94,46 @@ public class Main {
         quiz.setId(quizId); // Set the ID to the quiz object
 
         System.out.println("Donner le nombre de questions (nb: il ne faut pas dépasser 10 questions):");
-        int nQ = getValidInteger(sc, "Veuillez entrer un nombre entier valide pour le nombre de questions.");
-        nQ = Math.min(nQ, 10); // Limit the number of questions to 10
+        int nQ = sc.nextInt();
+        sc.nextLine(); // Consume newline character left by nextInt()
 
         // Loop to add questions
         for (int i = 0; i < nQ; i++) {
             System.out.println("Donner la question:");
-            String questionText = sc.nextLine();
+            String questionText = sc.nextLine(); // Use nextLine() to read the entire line
 
-            System.out.println("Donner la réponse:");
-            String answer = sc.nextLine();
+            System.out.println("Donner le nombre de réponses possibles:");
+            int numAnswers = sc.nextInt();
+            sc.nextLine(); // Consume newline character left by nextInt()
+
+            // Store answers as a single string with a delimiter (e.g., "|")
+            StringBuilder answersBuilder = new StringBuilder();
+            for (int j = 0; j < numAnswers; j++) {
+                System.out.println("Donner la réponse " + (j + 1) + ":");
+                String answer = sc.nextLine();
+                if (j > 0)
+                    answersBuilder.append("|"); // Add delimiter between answers
+                answersBuilder.append(answer);
+            }
+
+            System.out.println("Donner la réponse correcte:");
+            int correctAnswerIndex = sc.nextInt();
+            sc.nextLine(); // Consume newline character left by nextInt()
+
+            // Save the answers and correct answer
+            String answers = answersBuilder.toString();
+            String correctAnswer = String.valueOf(correctAnswerIndex);
 
             // Create and add question
-            Question question = new Question(quiz.getId(), questionText, answer);
+            Question question = new Question(quiz.getId(), questionText, answers, correctAnswer);
             questionDAO.addQuestion(question);
         }
     }
 
-    private static void removeQuiz(QuizDAO quizDAO) {
+    private static void removeQuiz() {
         Scanner sc = new Scanner(System.in);
 
-        // Display existing modules
+        // Display existing quizzes
         List<Quiz> quizzes = quizDAO.getAllQuizzes(); // Fetch existing quizzes from the DAO
         if (quizzes.isEmpty()) {
             System.out.println("Aucun module disponible.");
@@ -121,41 +142,64 @@ public class Main {
 
         System.out.println("Les modules existants:");
         for (int i = 0; i < quizzes.size(); i++) {
-            System.out.println("numéro: " + quizzes.get(i).getId() + " name: " + quizzes.get(i).getName());
+            System.out.println((i + 1) + " - " + quizzes.get(i).getName());
         }
 
         // Handle user input for module deletion
         int moduleToDelete = -1;
         while (moduleToDelete < 1 || moduleToDelete > quizzes.size()) {
             System.out.println("Donner le module à effacer (choisir par le numéro): ");
-            moduleToDelete = getValidInteger(sc, "Veuillez entrer un numéro valide pour le module à effacer.");
+            if (sc.hasNextInt()) {
+                moduleToDelete = sc.nextInt();
+                sc.nextLine(); // Consume the newline character
+            } else {
+                sc.nextLine(); // Clear invalid input
+                System.out.println("Entrée invalide. Veuillez entrer un numéro valide.");
+            }
         }
 
-        // Delete the selected module
-        quizDAO.deleteQuiz(moduleToDelete);
+        // Fetch the quiz to be deleted
+        Quiz quizToDelete = quizzes.get(moduleToDelete - 1);
 
+        // Delete associated results
+        try {
+            resultDAO.deleteResultsByQuizId(quizToDelete.getId());
+        } catch (SQLException e) {
+            System.out.println("Erreur lors de la suppression des résultats associés : " + e.getMessage());
+            return;
+        }
+
+        // Delete associated questions
+        try {
+            questionDAO.deleteQuestionsByQuizId(quizToDelete.getId());
+        } catch (SQLException e) {
+            System.out.println("Erreur lors de la suppression des questions associées : " + e.getMessage());
+            return;
+        }
+
+        quizDAO.deleteQuiz(quizToDelete.getId()); // Assume this method exists and takes an ID
         System.out.println("Module effacé avec succès.");
     }
 
-    private static void handleEtudiant(UserDAO userDAO, QuizDAO quizDAO, QuestionDAO questionDAO, ResultDAO resultDAO) {
+    private static void handleEtudiant() {
         Scanner sc = new Scanner(System.in);
         System.out.println("1-Tester vos connaissances 2-Visualiser vos résultats");
-        int choixEtud = getValidInteger(sc, "Veuillez entrer 1 pour Tester vos connaissances ou 2 pour Visualiser vos résultats.");
+        int choixEtud = getValidInteger(sc,
+                "Veuillez entrer 1 pour Tester vos connaissances ou 2 pour Visualiser vos résultats.");
 
         switch (choixEtud) {
-            case 1:
-                testKnowledge(userDAO, quizDAO, questionDAO, resultDAO);
-                break;
-            case 2:
-                viewResults(resultDAO);
-                break;
-            default:
-                System.out.println("Choix invalide.");
-                break;
+        case 1:
+            testKnowledge();
+            break;
+        case 2:
+            viewResults();
+            break;
+        default:
+            System.out.println("Choix invalide.");
+            break;
         }
     }
-
-    private static void testKnowledge(UserDAO userDAO, QuizDAO quizDAO, QuestionDAO questionDAO, ResultDAO resultDAO) {
+    private static void testKnowledge() {
         Scanner sc = new Scanner(System.in);
         System.out.println("Première fois? 1-Oui 2-Non");
         int premier = getValidInteger(sc, "Veuillez entrer 1 pour Oui ou 2 pour Non.");
@@ -201,7 +245,14 @@ public class Main {
         System.out.println("Votre score: " + score);
         System.out.println("Les réponses correctes sont:");
         for (Question q : questions) {
-            System.out.println(q.getQuestionText() + " - Réponse: " + q.getAnswer());
+            System.out.println(q.getQuestionText());
+            List<String> answerList = q.getAnswerList();
+            char option = 'a';
+            for (String answer : answerList) {
+                System.out.println(option + ") " + answer);
+                option++;
+            }
+            System.out.println("Réponse correcte: " + q.getCorrectAnswer());
         }
 
         Result result = new Result(userId, selectedQuiz.getId(), score);
@@ -211,23 +262,34 @@ public class Main {
     private static int calculateScore(ArrayList<Question> questions) {
         Scanner sc = new Scanner(System.in);
         int score = 0;
+
         for (Question question : questions) {
             System.out.println(question.getQuestionText());
-            System.out.println("Donner la réponse:");
-            String answer = sc.nextLine();
-            if (answer.equals(question.getAnswer())) {
+
+            // Split answers and display them
+            String[] answers = question.getAnswer().split("\\|");
+            for (int i = 0; i < answers.length; i++) {
+                System.out.println((i + 1) + ") " + answers[i]);
+            }
+
+            System.out.println("Donner la réponse (numéro):");
+            int userAnswerIndex = sc.nextInt();
+            sc.nextLine(); // Consume newline character left by nextInt()
+
+            // Check if the user's answer matches the correct answer
+            if (userAnswerIndex == Integer.parseInt(question.getCorrectAnswer())) {
                 score++;
             }
         }
+
         return score;
     }
 
-    private static void viewResults(ResultDAO resultDAO) {
+    private static void viewResults() {
         Scanner sc = new Scanner(System.in);
         System.out.println("Donner votre numéro CIN:");
         int cin = getValidInteger(sc, "Veuillez entrer un nombre entier valide pour le numéro CIN.");
 
-        UserDAO userDAO = new UserDAO();
         User user = userDAO.getUserByCin(cin);
         if (user == null) {
             System.out.println("Utilisateur non trouvé.");
@@ -248,17 +310,15 @@ public class Main {
 
     private static void displayResults() {
         Scanner sc = new Scanner(System.in);
-        ResultDAO resultDAO = new ResultDAO();
-        UserDAO userDAO = new UserDAO();
-        QuizDAO quizDAO = new QuizDAO();
-
-        System.out.println("1-Afficher les résultats de tous les étudiants 2-Afficher les résultats d'un étudiant spécifique");
-        int choice = getValidInteger(sc, "Veuillez entrer 1 pour afficher les résultats de tous les étudiants ou 2 pour un étudiant spécifique.");
+        System.out.println(
+                "1-Afficher les résultats de tous les étudiants 2-Afficher les résultats d'un étudiant spécifique");
+        int choice = getValidInteger(sc,
+                "Veuillez entrer 1 pour afficher les résultats de tous les étudiants ou 2 pour un étudiant spécifique.");
 
         if (choice == 1) {
             // Display results for all students
             ArrayList<Result> results = resultDAO.getAllResults();
-            printResultsTable(results, userDAO, quizDAO);
+            printResultsTable(results);
         } else if (choice == 2) {
             // Display results for a specific student
             System.out.println("Donner le numéro CIN de l'étudiant:");
@@ -269,13 +329,13 @@ public class Main {
                 return;
             }
             ArrayList<Result> results = resultDAO.getResultsByUserId(user.getId());
-            printResultsTable(results, userDAO, quizDAO);
+            printResultsTable(results);
         } else {
             System.out.println("Choix invalide.");
         }
     }
 
-    private static void printResultsTable(ArrayList<Result> results, UserDAO userDAO, QuizDAO quizDAO) {
+    private static void printResultsTable(ArrayList<Result> results) {
         // Print table header
         System.out.println(CYAN + BOLD
                 + String.format("%-10s %-30s %-10s %-15s", "User ID", "Quiz Name", "Score", "Date") + RESET);
